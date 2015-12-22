@@ -7,21 +7,21 @@ class PoltergeistCrawler
 
   def initialize
     Capybara.register_driver :poltergeist_crawler do |app|
-      Capybara::Poltergeist::Driver.new(app, :phantomjs => "H:/phantomjs.exe", :phantomjs_options => ['--proxy=142.4.200.240:3129'])
+      Capybara::Poltergeist::Driver.new(app, js_errors: false)
     end
-    Capybara.register_driver :selenium do |app|   
-      profile = Selenium::WebDriver::Firefox::Profile.new
+    # Capybara.register_driver :selenium do |app|
+    #   profile = Selenium::WebDriver::Firefox::Profile.new
 
-      profile["network.proxy.type"] = 1  
-      profile["network.proxy.http"] = '142.4.200.240'                                                                                                                              
-      profile["network.proxy.http_port"] = 3129 
+    #   profile["network.proxy.type"] = 1
+    #   profile["network.proxy.http"] = '142.4.200.240'
+    #   profile["network.proxy.http_port"] = 3129
 
-      Capybara::Selenium::Driver.new(app, browser: :firefox, profile: profile)
-    end
+    #   Capybara::Selenium::Driver.new(app, browser: :firefox, profile: profile)
+    # end
 
     Capybara.default_max_wait_time = 3
     Capybara.run_server = false
-    Capybara.default_driver = :poltergeist_crawler  
+    Capybara.default_driver = :poltergeist_crawler
     # page.driver.headers = {
     #   "DNT" => 1,
     #   "User-Agent" => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:22.0) Gecko/20100101 Firefox/22.0"
@@ -42,14 +42,22 @@ class PoltergeistCrawler
     filename = Time.now.to_s.split(" ")[0]+"_"+Time.now.to_s.split(" ")[1].gsub(":","-")
     file = File.new("#{filename}.txt", "w")
 
-    visit "http://www.futbol24.com/team/Qatar/Al-Wakra/results/"
+    visit "http://www.futbol24.com/team/South-Korea/Suwon-City/results/"
 
-    no_pages = (find('#number-total').text.to_i/50).floor
+    no_items = find('#number-total').text.to_i
+    no_pages = (no_items/50).floor
+    @no = 0
 
-    no_pages.times do 
+    no_pages.times do
       all(".dash .black.matchAction").each do |result|
+        print "#{@no}/#{no_items} "
+        @no += 1
+        unless possible_match(result.text)
+          p "skipping ..."
+          next
+        end
         result.trigger('click')
-        sleep 1
+        sleep 4
         screenshot
         info = find('.actioninfo.loadingContainer').text
         home = find(".home a").text
@@ -60,12 +68,13 @@ class PoltergeistCrawler
           ft_result = all(".action.action.action .result")[1].text
         end
 
-        if check_result(ht_result, ft_result)
+        if ht_result && check_result(ht_result, ft_result)
           p "!!!!!!!!!!!!!!!!!!!!!!! FOUND !!!!!!!!!!!!!!!!!!!!!!!!!"
           file_print_results(ht_result, ft_result, info, home, guest, file)
         end
 
         console_print_results(ht_result, ft_result, info, home, guest)
+        return if (ft_result == "-")
 
       end
 
@@ -77,6 +86,16 @@ class PoltergeistCrawler
 
     # click_on "More"
     # page.evaluate_script("window.location = '/'")
+  end
+
+  def possible_match(ft_result)
+    ft1 = ft_result.split(//).first.to_i
+    ft2 = ft_result.split(//).last.to_i
+    if (ft1 == 0) || (ft2 == 0) || (ft1 == ft2)
+      false
+    else
+      true
+    end
   end
 
   def check_result(ht_result, ft_result)
